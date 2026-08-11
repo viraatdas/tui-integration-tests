@@ -1,5 +1,7 @@
 # tui-integration-tests
 
+[![CI](https://github.com/viraatdas/tui-integration-tests/actions/workflows/ci.yml/badge.svg)](https://github.com/viraatdas/tui-integration-tests/actions/workflows/ci.yml)
+
 Screen-level integration tests for any terminal UI. Plug in your binary, send
 real keystrokes through a real PTY, and assert on **what the user actually
 sees** — not on what your structs claim.
