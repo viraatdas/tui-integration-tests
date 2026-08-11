@@ -1,11 +1,14 @@
 {
   "name": "tui-integration-tests",
-  "owner": { "name": "Viraat Das" },
+  "owner": {
+    "name": "Viraat Das"
+  },
   "plugins": [
     {
       "name": "tui-tests",
       "source": "./",
       "description": "Set up and drive screen-level TUI integration tests (real binary, real PTY, assertions on the visible screen), with an HTML report."
     }
-  ]
+  ],
+  "description": "Screen-level TUI integration testing: real binary, real PTY, assertions on the visible screen, journeys, and an HTML report."
 }
