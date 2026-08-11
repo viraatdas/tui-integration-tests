@@ -1,0 +1,3 @@
+node_modules/
+.tui-test-cache/
+*.tmp

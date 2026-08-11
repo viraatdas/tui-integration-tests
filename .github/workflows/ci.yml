@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # The driver binary is pinned by version + sha256 in pins.json; the cache
+      # key includes that file so a pin bump is automatically a cache miss.
+      - name: Cache tui-test driver
+        uses: actions/cache@v4
+        with:
+          path: .tui-test-cache
+          key: tui-test-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pins.json') }}
+
+      - name: Fetch driver (checksummed)
+        run: npm run fetch-driver
+
+      - name: Run the self-test suite
+        run: npm test

@@ -1,0 +1,38 @@
+{
+  "driver": "microsoft/tui-test",
+  "version": "0.1.0-beta.1",
+  "artifacts": {
+    "darwin-arm64": {
+      "name": "tui-test-aarch64-apple-darwin.tar.gz",
+      "sha256": "75382778ce69496e317c6f1c459f13998f613fca3d43329707670e0df96c5fae"
+    },
+    "darwin-x64": {
+      "name": "tui-test-x86_64-apple-darwin.tar.gz",
+      "sha256": "e48e121e9691e0108ec5e09a600f2144fccec5c954c2178fc0f6b002ec7aef33"
+    },
+    "linux-arm64": {
+      "name": "tui-test-aarch64-unknown-linux-gnu.tar.gz",
+      "sha256": "aefa56083780151140623bf53b3ae7aeef5b0cc45e753236dec36bc83cbb5cb2"
+    },
+    "linux-arm64-musl": {
+      "name": "tui-test-aarch64-unknown-linux-musl.tar.gz",
+      "sha256": "f0a7420b57d826071f18f9aaa525d61ffd2c434680e5d965915d42915cff2896"
+    },
+    "linux-x64": {
+      "name": "tui-test-x86_64-unknown-linux-gnu.tar.gz",
+      "sha256": "33f8b34a37438e96a58d685d24b51be258d144973c81e5b1132f25ac01fec89e"
+    },
+    "linux-x64-musl": {
+      "name": "tui-test-x86_64-unknown-linux-musl.tar.gz",
+      "sha256": "82b18ca2ce30b6bad274d710921bdaf90e35c367aa2571d8c8a649ff1fd97c59"
+    },
+    "win32-arm64": {
+      "name": "tui-test-aarch64-pc-windows-msvc.zip",
+      "sha256": "40db55c34094f9610ba87d8434a69136fb2d34e9348790e385d957994c0455ff"
+    },
+    "win32-x64": {
+      "name": "tui-test-x86_64-pc-windows-msvc.zip",
+      "sha256": "09588eb190d18fa36e61d35b5c5c3dadd11619c21f43f7ec5d301e727732c137"
+    }
+  }
+}
