@@ -97,6 +97,26 @@ The point of the flags: `-u NONE -i NONE -N` makes vim identical on every
 machine, which is exactly the determinism your own app's tests need (state in
 a fixed dir, no user config, no network).
 
+## Fastest path: paste one prompt into your AI
+
+[`SETUP_PROMPT.md`](SETUP_PROMPT.md) is a single copyable block for your AI
+coding agent (Claude Code, Cursor, Codex, …). Paste it in your TUI's repo and
+the agent installs the package, makes your app hermetic-testable, writes the
+first four screen-level tests, and wires up the HTML report — following the
+same field-tested rules this README documents, so it does not re-hit the traps
+(ambiguous waits, repaint races, focus drift, sleep-based flakiness).
+
+## Every run can produce a report
+
+```sh
+npm run test:tui:report        # or see SETUP_PROMPT.md for the raw command
+```
+
+writes **`tui-report.html`**: pass/fail table with timings, every failure with
+the final screen the user was looking at, and a gallery of each session's last
+screen. Self-contained HTML — attach it to a PR, upload it as a CI artifact
+(`if: always()`, so red runs keep their evidence), or just open it.
+
 ## Using it in your own project
 
 ```sh

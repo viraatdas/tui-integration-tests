@@ -1,3 +1,5 @@
 node_modules/
 .tui-test-cache/
 *.tmp
+tui-report.html
+.tui-report/

@@ -15,6 +15,8 @@
 //     Restart bugs are invisible to in-process tests by construction, and they
 //     are real: the bug that motivated this project passed 502 unit tests.
 import { execFile, execFileSync } from "node:child_process";
+import fsp from "node:fs/promises";
+import { join as pathJoin } from "node:path";
 import { promisify } from "node:util";
 import { ensureDriver } from "./fetch-driver.mjs";
 
@@ -197,6 +199,21 @@ export class Session {
 
   async close() {
     liveSessions.delete(this);
+    // Capture the final screen for the report before tearing the session down.
+    // Test files run in child processes while the reporter runs in the parent,
+    // so the handoff goes through disk: one small text file per session under
+    // .tui-report/screens (override with TUI_IT_REPORT_DIR). Best-effort — a
+    // failed capture must never fail a green test.
+    try {
+      const reportDir = process.env.TUI_IT_REPORT_DIR ?? ".tui-report";
+      const screensDir = pathJoin(reportDir, "screens");
+      await fsp.mkdir(screensDir, { recursive: true });
+      const screen = await this.screen();
+      const header = `session: ${this.name}\nbinary: ${this.config.binary} ${(this.config.args ?? []).join(" ")}\n---\n`;
+      await fsp.writeFile(pathJoin(screensDir, `${this.name}.txt`), header + screen);
+    } catch {
+      // No screen to capture (already dead) or nowhere to write it: fine.
+    }
     try {
       await this.driver(["close"]);
     } catch {
