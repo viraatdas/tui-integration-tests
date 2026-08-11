@@ -25,7 +25,7 @@ jobs:
       - name: Cache tui-test driver
         uses: actions/cache@v4
         with:
-          path: .tui-test-cache
+          path: ~/.cache/tui-integration-tests
           key: tui-test-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pins.json') }}
 
       - name: Fetch driver (checksummed)

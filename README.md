@@ -193,9 +193,10 @@ STEP 2 — find the binary and make the app hermetic
   If a switch is missing, add it — it is a small change and every test needs it.
 
 STEP 3 — write tests/tui/helpers.mjs
-  One launch helper that calls `launch()` from tui-integration-tests with the
-  binary, cols/rows (120x40 is a good default), a scratch cwd, and the
-  hermetic env. Add app-specific normalizers for anything that churns per run
+  One launch helper that calls `launch(config, t)` from tui-integration-tests
+  with the binary, cols/rows (120x40 is a good default), a scratch cwd, and
+  the hermetic env. Passing the node:test context `t` makes every session —
+  including ones from respawn() — clean itself up via t.after(). Add app-specific normalizers for anything that churns per run
   (ids, timestamps); the defaults already scrub long digit runs and spinner
   glyphs.
 
@@ -359,16 +360,20 @@ timeout error — which is the debugging loop working as designed:
 
 | method | what it does |
 |---|---|
-| `launch({binary, args, cols, rows, cwd, env, normalizers})` | boot the TUI in a fresh PTY session |
+| `launch(config, t?)` | boot the TUI in a fresh PTY; pass the node:test context and the session auto-cleans via `t.after()`, including sessions from later `respawn()` calls |
 | `type(text)` / `press(...keys)` / `write(bytes)` | real input; `press("Ctrl+C")`, `press("Escape")` |
 | `screen()` | visible screen as text, normalized |
 | `waitForText(text)` / `waitForGone(text)` / `waitFor(fn)` | poll until the condition holds; timeout errors include the last screen |
 | `resize(cols, rows)` | resize the PTY and emulator |
 | `title()` | window title (OSC 0/2) |
-| `kill()` / `respawn()` / `waitForExit()` | process lifecycle; respawn reuses the config against whatever is on disk |
+| `kill()` / `respawn()` / `waitForExit()` | process lifecycle; respawn reuses the config against whatever is on disk and inherits auto-cleanup |
+| `recordingPath` | every session's asciinema `.cast` replay, courtesy of the driver |
 | `close()` | tear down the session (also runs on process exit) |
 
 One rule above all: **there is no `sleep()` in this API, on purpose.**
+
+TypeScript definitions ship in the package (`index.d.ts`) — completion and
+typo-catching in editors with zero build step.
 
 ## CI
 

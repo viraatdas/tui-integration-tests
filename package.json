@@ -1,6 +1,6 @@
 {
   "name": "tui-integration-tests",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Screen-level integration tests for any terminal UI: plug in your binary, send real keystrokes through a real PTY, assert on what the user actually sees.",
   "type": "module",
   "license": "MIT",
@@ -23,7 +23,10 @@
     "screen-testing"
   ],
   "exports": {
-    ".": "./harness/harness.mjs",
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./harness/harness.mjs"
+    },
     "./fetch-driver": "./harness/fetch-driver.mjs",
     "./reporter": "./harness/reporter.mjs"
   },
@@ -33,7 +36,8 @@
     "examples/",
     "README.md",
     "LICENSE",
-    "SETUP_PROMPT.md"
+    "SETUP_PROMPT.md",
+    "index.d.ts"
   ],
   "scripts": {
     "fetch-driver": "node harness/fetch-driver.mjs",
@@ -42,5 +46,6 @@
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "types": "./index.d.ts"
 }

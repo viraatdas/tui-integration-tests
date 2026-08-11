@@ -58,7 +58,8 @@ notices).
 
 ## API essentials
 
-`launch({binary, args, cols, rows, cwd, env, normalizers})` → Session with
+`launch(config, t)` (pass the node:test context; sessions auto-clean via
+t.after(), including after respawn()) → Session with
 `type/press/write`, `screen()`, `waitForText/waitForGone/waitFor`,
 `resize`, `title()`, `kill/respawn/waitForExit`, `close()`. There is
 deliberately no sleep in the API: every wait polls the screen and timeout

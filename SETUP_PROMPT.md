@@ -30,9 +30,10 @@ STEP 2 — find the binary and make the app hermetic
   If a switch is missing, add it — it is a small change and every test needs it.
 
 STEP 3 — write tests/tui/helpers.mjs
-  One launch helper that calls `launch()` from tui-integration-tests with the
-  binary, cols/rows (120x40 is a good default), a scratch cwd, and the
-  hermetic env. Add app-specific normalizers for anything that churns per run
+  One launch helper that calls `launch(config, t)` from tui-integration-tests
+  with the binary, cols/rows (120x40 is a good default), a scratch cwd, and
+  the hermetic env. Passing the node:test context `t` makes every session —
+  including ones from respawn() — clean itself up via t.after(). Add app-specific normalizers for anything that churns per run
   (ids, timestamps); the defaults already scrub long digit runs and spinner
   glyphs.
 

@@ -46,10 +46,12 @@ export const defaultNormalizers = [
 ];
 
 export class Session {
-  constructor(config) {
+  constructor(config, testContext = null) {
     this.config = config;
+    this.testContext = testContext;
     this.name = config.name ?? `tit-${process.pid}-${sessionCounter++}`;
     this.pid = null;
+    this.recordingPath = null;
     this.normalizers = config.normalizers ?? defaultNormalizers;
   }
 
@@ -66,18 +68,37 @@ export class Session {
   async start() {
     const { binary, args = [], cols = 120, rows = 40, cwd, env = {} } = this.config;
     const envFlags = Object.entries(env).flatMap(([key, value]) => ["--env", `${key}=${value}`]);
-    const out = await this.driver([
-      "run",
-      "--json",
-      "--cols", String(cols),
-      "--rows", String(rows),
-      ...(cwd ? ["--cwd", cwd] : []),
-      ...envFlags,
-      binary,
-      ...args,
-    ]);
-    this.pid = JSON.parse(out).pid ?? null;
+    let out;
+    try {
+      out = await this.driver([
+        "run",
+        "--json",
+        "--cols", String(cols),
+        "--rows", String(rows),
+        ...(cwd ? ["--cwd", cwd] : []),
+        ...envFlags,
+        binary,
+        ...args,
+      ]);
+    } catch (error) {
+      // The raw failure is "Command failed: <driver path + 10 args>", which
+      // buries the only fact that matters. Name the binary; keep the driver's
+      // stderr, which says why.
+      const detail = (error?.stderr || error?.message || String(error)).trim();
+      throw new Error(`failed to launch ${binary}: ${detail}`, { cause: error });
+    }
+    // The driver envelopes JSON as {ok, data:{...}}; tolerate bare objects
+    // too, since that is what an earlier build emitted.
+    const parsed = JSON.parse(out);
+    const info = parsed?.data ?? parsed;
+    this.pid = info.pid ?? null;
+    // Every session is recorded as an asciinema cast by the driver; keep the
+    // path so tests and reports can point at a rewatchable replay.
+    this.recordingPath = info.recording ?? null;
     liveSessions.add(this);
+    if (this.testContext?.after) {
+      this.testContext.after(() => this.close());
+    }
     return this;
   }
 
@@ -178,7 +199,15 @@ export class Session {
 
   /** Wait for the child process to exit on its own (e.g. after a quit key). */
   async waitForExit({ timeout = 10_000 } = {}) {
-    await this.driver(["wait", "exit", "--timeout", String(timeout)]);
+    try {
+      await this.driver(["wait", "exit", "--timeout", String(timeout)]);
+    } catch (error) {
+      const lastScreen = await this.screen().catch(() => "(screen unavailable)");
+      throw new Error(
+        `process did not exit within ${timeout}ms\n--- last screen (${this.name}) ---\n${lastScreen}`,
+        { cause: error },
+      );
+    }
   }
 
   /** Kill the child process. The session (and its screen) remains inspectable. */
@@ -193,7 +222,9 @@ export class Session {
    */
   async respawn() {
     await this.close();
-    const next = new Session({ ...this.config, name: undefined });
+    // The new session inherits the test context, so auto-cleanup follows the
+    // story across process death — no re-registering, no leaked sessions.
+    const next = new Session({ ...this.config, name: undefined }, this.testContext);
     return await next.start();
   }
 
@@ -298,6 +329,9 @@ export function journey(session, name) {
 /**
  * Launch a TUI under test.
  *
+ * launch(config, t) — pass the node:test context and the session cleans
+ * itself up via t.after(); respawn() carries it across process death.
+ *
  * launch({
  *   binary: "./target/debug/my-tui",  // or "node", with args: ["app.mjs"]
  *   args: [],
@@ -307,6 +341,6 @@ export function journey(session, name) {
  *   normalizers: defaultNormalizers,  // or your own [pattern, replacement][]
  * })
  */
-export async function launch(config) {
-  return await new Session(config).start();
+export async function launch(config, testContext = null) {
+  return await new Session(config, testContext).start();
 }

@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import fsp from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -44,7 +45,18 @@ export async function ensureDriver() {
     );
   }
 
-  const cacheDir = path.join(root, ".tui-test-cache", pins.version);
+  // Cache OUTSIDE the package: node_modules is wiped on every reinstall, and
+  // re-downloading 3 MB per `npm i` is silly. TUI_IT_CACHE_DIR overrides;
+  // version-keyed so a pin bump can never reuse a stale binary. The old
+  // in-package location is honored if it already has the binary.
+  const cacheRoot =
+    process.env.TUI_IT_CACHE_DIR ??
+    path.join(os.homedir(), ".cache", "tui-integration-tests");
+  const legacy = path.join(root, ".tui-test-cache", pins.version, "tui-test");
+  if (fs.existsSync(legacy)) {
+    return legacy;
+  }
+  const cacheDir = path.join(cacheRoot, pins.version);
   const driverPath = path.join(cacheDir, "tui-test");
   if (fs.existsSync(driverPath)) {
     return driverPath;
