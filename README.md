@@ -74,7 +74,30 @@ bundled precisely so the framework can prove itself in CI. Six tests, ~2s
 total: keystrokes, resize, kill/respawn persistence, disappearance, custom
 normalizers, window title.
 
-## Plugging in your TUI
+## Using it in your own project
+
+Install straight from GitHub (no npm publish needed — pin a commit so your CI
+is reproducible):
+
+```sh
+npm install --save-dev "tui-integration-tests@github:viraatdas/tui-integration-tests#<commit>"
+```
+
+Add a script and a test directory:
+
+```jsonc
+// package.json
+"scripts": {
+  "test:tui": "node --test tests/tui/*.test.mjs"
+}
+```
+
+That is the entire integration. This is not hypothetical:
+[rudder's `tests/tui/`](https://github.com/viraatdas/rudder/tree/main/tests/tui)
+consumes exactly this way — six end-to-end tests driving a Rust ratatui
+dashboard (spawn workers, kill and respawn the process, merge-gate keystrokes)
+in ~7 seconds, with zero changes needed in this framework. Use its
+`helpers.mjs` as the template for your own fixture glue.
 
 1. Write a test file next to your project (or in this repo's `tests/`):
 
@@ -113,6 +136,27 @@ session.normalizers = [
 ];
 ```
 
+## Lessons from the first real consumer
+
+Wiring a production dashboard into this framework surfaced four traps worth
+knowing before you hit them. Each was diagnosed from the screen embedded in a
+timeout error — which is the debugging loop working as designed:
+
+- **`realpath` your scratch dirs.** macOS tmpdirs live behind the
+  `/var → /private/var` symlink, and apps often canonicalize their cwd.
+  Fixtures keyed on the uncanonicalized spelling silently miss.
+- **Wait on unambiguous text.** Waiting for `"done"` matched a `"Done when:"`
+  help sentence while the app was still running, so the next keystroke fired
+  too early. Wait for the exact affordance (`"press m to read the diff"`),
+  not a word that appears in prose.
+- **Focus is part of the flow.** After some commands, the app moves focus to
+  another pane — keystrokes typed "blind" become input to the wrong widget.
+  Drive focus the way a user does (the app's own pane-switch keys), and
+  assert on the result.
+- **Retry cleanup, don't assert it.** An app's children can still be flushing
+  state files while `rm -rf` walks the tree (`ENOTEMPTY`). Deleting a scratch
+  dir is cleanup; give it a few retries instead of failing a green test.
+
 ## API
 
 | method | what it does |
@@ -130,9 +174,24 @@ One rule above all: **there is no `sleep()` in this API, on purpose.**
 
 ## CI
 
-See [`.github/workflows/ci.yml`](.github/workflows/ci.yml): Ubuntu + macOS,
-driver cached by a key that includes `pins.json` (a pin bump is automatically
-a cache miss), checksum verified on every fresh fetch.
+This repo's own workflow ([`.github/workflows/ci.yml`](.github/workflows/ci.yml))
+runs the self-test suite on Ubuntu + macOS, with the driver cached by a key
+that includes `pins.json` (a pin bump is automatically a cache miss) and the
+checksum verified on every fresh fetch.
+
+In **your** project's CI, no special setup is needed beyond your binary:
+
+```yaml
+- run: npm ci                 # installs the framework from the git pin
+- run: cargo build --release  # or however your TUI is built
+- run: npm run test:tui
+  env:
+    MY_TUI_BIN: target/release/my-tui   # however your tests resolve the binary
+```
+
+The framework fetches its pinned driver on first use, checksum-verified.
+GitHub's `download-artifact` drops the execute bit — `chmod +x` prebuilt
+binaries before pointing tests at them.
 
 ## Roadmap
 
