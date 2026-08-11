@@ -4,6 +4,40 @@ Screen-level integration tests for any terminal UI. Plug in your binary, send
 real keystrokes through a real PTY, and assert on **what the user actually
 sees** — not on what your structs claim.
 
+Precisely what it does:
+
+- **spawns your real compiled binary** inside a real PTY session — any
+  language, nothing simulated in-process
+- **types real keystroke bytes** (`type("text")`, `press("Enter")`,
+  `press("Ctrl+C")`) — the app cannot tell it isn't a human at a terminal
+- **reads the emulated screen** (Alacritty engine, real terminfo) and **polls
+  it for assertions** — `waitForText`, `waitFor(predicate)`; there is no
+  `sleep()` in the API, and every timeout error embeds the final screen
+- **kills and respawns the process** against the same on-disk state, so
+  restart bugs — invisible to every in-process test — are testable
+- **runs multi-turn journeys**: named user stories of many steps (mutate,
+  resize mid-flow, die, return, verify memory, quit), each step checkpointed
+  with its screen
+- **writes an HTML report** (`tui-report.html`): results, every failure with
+  the screen the user was looking at, journey storylines, session gallery
+- driver auto-fetched once, **sha256-pinned**; macOS/Linux; Node ≥ 20
+
+## Use it from Claude Code (plugin — fastest)
+
+```
+/plugin marketplace add viraatdas/tui-integration-tests
+/plugin install tui-tests@tui-integration-tests
+```
+
+Then, in your TUI's repo, say **"add screen-level tests for this TUI"** or
+**"debug this failing tui test"**. The `tui-tests` skill sets everything up —
+install, hermetic switches, four smoke tests, one real journey, the report —
+following the field-tested rules below. (~140 tokens always-on; verified
+end to end: marketplace add → install → skill loads.) Other agents — Cursor,
+Codex — use the [prompt block](#fastest-path-paste-this-into-your-ai) instead.
+
+## The API in one glance
+
 ```js
 import { launch } from "tui-integration-tests";
 
@@ -354,20 +388,6 @@ In **your** project's CI, no special setup is needed beyond your binary:
 The framework fetches its pinned driver on first use, checksum-verified.
 GitHub's `download-artifact` drops the execute bit — `chmod +x` prebuilt
 binaries before pointing tests at them.
-
-## Use it inside Claude Code (plugin)
-
-This repo is also a Claude Code plugin. Install:
-
-```
-/plugin marketplace add viraatdas/tui-integration-tests
-/plugin install tui-tests@tui-integration-tests
-```
-
-That gives Claude Code the `tui-tests` skill: ask it to "add screen-level
-tests for this TUI" or "debug this failing tui test" and it follows the same
-field-tested playbook as `SETUP_PROMPT.md` — no copy-pasting needed. (Other
-agents — Cursor, Codex — use the prompt block at the top instead.)
 
 ## Roadmap
 
