@@ -33,6 +33,29 @@ pinned and checksum-verified. macOS/Linux, Node >= 20.
    bugs are invisible to in-process tests) → `resize(60, 20)` survives and
    stays interactive.
 
+## Journeys: the shape real assessment takes
+
+Structure meaningful tests as JOURNEYS — one continuous multi-turn user story
+(mutate state, change your mind, resize mid-flow, kill and respawn, verify
+memory, quit) with every step checkpointed:
+
+    const story = journey(session, "first-run: create, restart, verify");
+    await story.step("boots empty", () => session.waitForText("no items"));
+    session = await story.step("survives restart", async () => {
+      await session.kill();
+      const revived = await session.respawn();
+      await revived.waitForText("1 item");
+      return revived;                  // steps may hand back a new session
+    });
+    await story.end();
+
+Each step records the screen as it looked when the step finished (or failed);
+the HTML report tells the storyline step by step. A failing step flushes the
+story before rethrowing, so red runs keep their narrative. Prefer one journey
+of 6-10 steps over ten disconnected one-key tests: multi-turn flows are where
+TUIs actually break (focus drift, stale state after restart, transient
+notices).
+
 ## API essentials
 
 `launch({binary, args, cols, rows, cwd, env, normalizers})` → Session with

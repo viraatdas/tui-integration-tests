@@ -25,6 +25,20 @@ function failureDetail(error) {
   return parts.join("\n");
 }
 
+function journeys() {
+  const dir = path.join(process.env.TUI_IT_REPORT_DIR ?? ".tui-report", "journeys");
+  try {
+    return fs
+      .readdirSync(dir)
+      .filter((name) => name.endsWith(".json"))
+      .sort()
+      .map((name) => JSON.parse(fs.readFileSync(path.join(dir, name), "utf8")))
+      .filter((entry) => entry && Array.isArray(entry.steps));
+  } catch {
+    return [];
+  }
+}
+
 function screensGallery() {
   const dir = path.join(process.env.TUI_IT_REPORT_DIR ?? ".tui-report", "screens");
   try {
@@ -69,7 +83,26 @@ export default async function* tuiReporter(source) {
   const skipped = tests.filter((test) => test.skipped);
   const totalMs = tests.reduce((sum, test) => sum + test.durationMs, 0);
   const gallery = screensGallery();
+  const stories = journeys();
   const verdictColor = failed.length ? "#e05252" : "#3fb37f";
+
+  const storylines = stories
+    .map((story) => {
+      const bad = story.steps.some((step) => !step.ok);
+      const stepHtml = story.steps
+        .map(
+          (step, index) => `<details${step.ok ? "" : " open"}>
+  <summary><span class="st ${step.ok ? "ok" : "bad"}">${step.ok ? "✓" : "✖"}</span> step ${index + 1} — ${esc(step.label)}</summary>
+  <pre class="screen">${esc(step.screen || "(no screen captured)")}</pre>
+</details>`,
+        )
+        .join("\n");
+      return `<section>
+  <h3><span class="st ${bad ? "bad" : "ok"}">${bad ? "✖" : "✓"}</span> ${esc(story.name)} <span class="dim">(${story.steps.length} steps)</span></h3>
+  ${stepHtml}
+</section>`;
+    })
+    .join("\n");
 
   const rows = tests
     .map(
@@ -120,6 +153,7 @@ export default async function* tuiReporter(source) {
 <p class="dim">${esc(startedAt.toISOString())} · ${passed.length} passed, ${failed.length} failed, ${skipped.length} skipped · ${(totalMs / 1000).toFixed(1)}s</p>
 <table>${rows}</table>
 ${failures ? `<h2>Failures — what the user was looking at</h2>${failures}` : ""}
+${storylines ? `<h2>Journeys — step by step, with screens</h2>${storylines}` : ""}
 ${screens ? `<h2>Final screens (${gallery.length} sessions)</h2>${screens}` : ""}
 `;
 }

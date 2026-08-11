@@ -45,6 +45,13 @@ STEP 4 — write the first tests (tests/tui/smoke.test.mjs), in this order
   Run with `npm run test:tui`. Every timeout error embeds the final screen —
   read it, fix the assertion or the fixture, re-run. Do not guess.
 
+STEP 5 — then write one real JOURNEY (import { journey } from the package):
+  a continuous multi-turn story of 6-10 steps — mutate state, change course,
+  resize mid-flow, kill() + respawn(), verify memory, quit cleanly — each
+  step checkpointed with its screen via journey(session, name).step(...).
+  The HTML report renders the storyline step by step; failing steps keep
+  their narrative. Multi-turn flows are where TUIs actually break.
+
 RULES (each one bought with real debugging time)
   - Poll, never sleep. waitForText/waitFor poll the screen; a fixed sleep is
     a flake with a timer attached.

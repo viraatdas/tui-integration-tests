@@ -230,6 +230,72 @@ export class Session {
 }
 
 /**
+ * A JOURNEY: a named multi-step user sequence — the "open it, do the thing,
+ * change your mind, restart, finish" flows where TUIs actually break. Each
+ * step is checkpointed with the screen as it looked when the step finished
+ * (or failed), and the whole storyline lands in the HTML report, so a red
+ * journey reads like a bug report a human wrote: which step, what the user
+ * saw.
+ *
+ *   const j = journey(session, "first-run experience");
+ *   await j.step("boots to the empty state", () => session.waitForText("no items"));
+ *   await j.step("adding an item shows it", async () => {
+ *     await session.type("a"); await session.waitForText("1 item");
+ *   });
+ *   session = await j.step("survives a restart", async () => {
+ *     await session.kill();
+ *     const revived = await session.respawn();
+ *     await revived.waitForText("1 item");
+ *     return revived;                    // steps may hand back a new session
+ *   });
+ *   await j.end();
+ *
+ * A failing step records the failure screen, flushes the storyline, and
+ * rethrows — the test goes red AND the report keeps the narrative.
+ */
+export function journey(session, name) {
+  const steps = [];
+  let current = session;
+  const flush = async () => {
+    try {
+      const reportDir = process.env.TUI_IT_REPORT_DIR ?? ".tui-report";
+      const dir = pathJoin(reportDir, "journeys");
+      await fsp.mkdir(dir, { recursive: true });
+      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      await fsp.writeFile(
+        pathJoin(dir, `${slug || "journey"}.json`),
+        JSON.stringify({ name, steps }, null, 2),
+      );
+    } catch {
+      // The storyline is evidence, not an assertion; never fail a test over it.
+    }
+  };
+  return {
+    async step(label, fn) {
+      try {
+        const result = await fn();
+        if (result instanceof Session) {
+          current = result;
+        }
+        steps.push({ label, ok: true, screen: await current.screen().catch(() => "") });
+        return result;
+      } catch (error) {
+        steps.push({
+          label,
+          ok: false,
+          screen: await current.screen().catch(() => String(error?.message ?? error)),
+        });
+        await flush();
+        throw error;
+      }
+    },
+    async end() {
+      await flush();
+    },
+  };
+}
+
+/**
  * Launch a TUI under test.
  *
  * launch({
