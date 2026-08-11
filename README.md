@@ -42,6 +42,23 @@ Three ideas fix that class of failure:
    process against the same on-disk state. If your app derives state at
    startup, this is the only kind of test that exercises that path.
 
+## What actually happens when a test runs
+
+```
+your test (node:test)
+  └─ launch()                 spawns YOUR binary inside a fresh PTY session
+       └─ tui-test daemon     owns the PTY + emulation (Alacritty engine)
+            └─ your app       runs exactly as it does for a user
+  type()/press()              real keystroke bytes down the PTY
+  screen()/waitForText()      polls the EMULATED SCREEN until the condition holds
+  close()                     snapshots the final screen, tears the session down
+```
+
+First run only: the pinned driver binary (~3 MB) is downloaded from the
+microsoft/tui-test release, its sha256 verified against `pins.json`, and
+cached in `.tui-test-cache/`. Nothing else is installed, nothing runs at
+import time, and no test ever talks to the network.
+
 ## How it works
 
 [microsoft/tui-test](https://github.com/microsoft/tui-test) is the driver
@@ -53,6 +70,15 @@ project is the **test framework on top** of it:
 |---|---|
 | tui-test (pinned) | PTY, emulation, keys/mouse, screen text, window title |
 | this project | sessions + cleanup, deterministic waiting, normalization, respawn, checksummed installs, CI recipe |
+
+**Is the driver a good bet?** Assessed by use, not by stars: it drove a Rust
+ratatui dashboard, vim, and the bundled demo through real PTYs on two OSes
+with zero emulation bugs; its quirks (a beta CLI, evolving flags) are
+absorbed here. It exposes ~27 subcommands; this framework uses **10** of
+them — the monitor/recording/agent extras are inert for testing. If the
+project ever goes sideways, the exposure is one file (`harness/harness.mjs`,
+~250 lines): every driver call goes through it, so swapping drivers is a
+rewrite of that file, not of anyone's tests.
 
 The driver version is pinned in [`pins.json`](pins.json) with a sha256 for
 every platform artifact. `npm run fetch-driver` downloads and **verifies**
@@ -311,6 +337,20 @@ In **your** project's CI, no special setup is needed beyond your binary:
 The framework fetches its pinned driver on first use, checksum-verified.
 GitHub's `download-artifact` drops the execute bit — `chmod +x` prebuilt
 binaries before pointing tests at them.
+
+## Use it inside Claude Code (plugin)
+
+This repo is also a Claude Code plugin. Install:
+
+```
+/plugin marketplace add viraatdas/tui-integration-tests
+/plugin install tui-tests@tui-integration-tests
+```
+
+That gives Claude Code the `tui-tests` skill: ask it to "add screen-level
+tests for this TUI" or "debug this failing tui test" and it follows the same
+field-tested playbook as `SETUP_PROMPT.md` — no copy-pasting needed. (Other
+agents — Cursor, Codex — use the prompt block at the top instead.)
 
 ## Roadmap
 
