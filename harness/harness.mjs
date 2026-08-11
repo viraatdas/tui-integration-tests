@@ -128,12 +128,25 @@ export class Session {
    * else is sugar over it. On timeout the error carries the last screen, so a
    * red CI run shows what the user was looking at, not just "timed out".
    */
-  async waitFor(predicate, { timeout = 10_000, interval = 100, label = "condition" } = {}) {
+  /**
+   * `stablePolls`: how many CONSECUTIVE polls must satisfy the predicate.
+   * Presence waits default to 1 — text on screen is monotone enough. Absence
+   * waits default to 3, because a repaint blanks the region for a frame and a
+   * single poll landing in that gap reads as "gone": observed in the field,
+   * where a deletion test green-lit a build in which deletion was provably
+   * refused.
+   */
+  async waitFor(
+    predicate,
+    { timeout = 10_000, interval = 100, label = "condition", stablePolls = 1 } = {},
+  ) {
     const deadline = Date.now() + timeout;
     let lastScreen = "";
+    let streak = 0;
     for (;;) {
       lastScreen = await this.screen();
-      if (predicate(lastScreen)) {
+      streak = predicate(lastScreen) ? streak + 1 : 0;
+      if (streak >= stablePolls) {
         return lastScreen;
       }
       if (Date.now() >= deadline) {
@@ -155,6 +168,7 @@ export class Session {
   /** Wait until text is ABSENT — for asserting something went away. */
   async waitForGone(text, opts = {}) {
     return await this.waitFor((screen) => !screen.includes(text), {
+      stablePolls: 3,
       ...opts,
       label: `disappearance of ${JSON.stringify(text)}`,
     });

@@ -176,6 +176,12 @@ timeout error — which is the debugging loop working as designed:
   another pane — keystrokes typed "blind" become input to the wrong widget.
   Drive focus the way a user does (the app's own pane-switch keys), and
   assert on the result.
+- **Absence is repaint-racy; the API now defends it.** A full-screen redraw
+  blanks a region for a frame, and a single poll landing in the gap reads as
+  "the text is gone" — one deletion test green-lit a build where deletion was
+  provably refused. `waitForGone` therefore requires 3 consecutive absent
+  polls (tunable via `stablePolls`). Prefer a positive post-state assert when
+  one exists ("empty-list placeholder returned" beats "row text vanished").
 - **Retry cleanup, don't assert it.** An app's children can still be flushing
   state files while `rm -rf` walks the tree (`ENOTEMPTY`). Deleting a scratch
   dir is cleanup; give it a few retries instead of failing a green test.
