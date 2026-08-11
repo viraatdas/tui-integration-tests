@@ -74,14 +74,37 @@ bundled precisely so the framework can prove itself in CI. Six tests, ~2s
 total: keystrokes, resize, kill/respawn persistence, disappearance, custom
 normalizers, window title.
 
+## Proof on a TUI nobody here wrote: vim
+
+[`tests/vim.test.mjs`](tests/vim.test.mjs) drives **real vim** — preinstalled
+on macOS, Linux, and both GitHub CI runners, so it demonstrates the framework
+against a famous third-party binary with zero setup:
+
+```js
+const session = await launch({ binary: "vim", args: ["-u", "NONE", "-i", "NONE", "-N", file] });
+await session.press("i");                          // modal editing, for real
+await session.waitForText("-- INSERT --");
+await session.type("hello from a real PTY");
+await session.press("Escape");
+await session.type(":wq"); await session.press("Enter");
+await session.waitForExit();
+assert.equal(await fsp.readFile(file, "utf8"), "hello from a real PTY\n");
+```
+
+Insert mode, `/search`, `dd`, `:wq` — asserted on the screen *and* on disk,
+in under a second. If it can drive vim's modal editing, it can drive your app.
+The point of the flags: `-u NONE -i NONE -N` makes vim identical on every
+machine, which is exactly the determinism your own app's tests need (state in
+a fixed dir, no user config, no network).
+
 ## Using it in your own project
 
-Install straight from GitHub (no npm publish needed — pin a commit so your CI
-is reproducible):
-
 ```sh
-npm install --save-dev "tui-integration-tests@github:viraatdas/tui-integration-tests#<commit>"
+npm install --save-dev tui-integration-tests
 ```
+
+(Or pin straight to a git commit if you prefer:
+`npm i -D "tui-integration-tests@github:viraatdas/tui-integration-tests#<commit>"`.)
 
 Add a script and a test directory:
 
@@ -195,7 +218,6 @@ binaries before pointing tests at them.
 
 ## Roadmap
 
-- npm publish, so `npm i -D tui-integration-tests` works without cloning
 - Windows driver extraction (artifacts are already pinned in `pins.json`)
 - TERM matrix runs (`xterm-256color` / `screen-256color` / `xterm-ghostty`)
 - output-byte invariants (alt-screen balanced, no stray CSI) as built-in checks
