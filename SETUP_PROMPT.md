@@ -17,7 +17,7 @@ STEP 1 — install and wire scripts
   npm i -D tui-integration-tests
   Add to package.json scripts:
     "test:tui": "node --test tests/tui/*.test.mjs"
-    "test:tui:report": "node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=tui-integration-tests/reporter --test-reporter-destination=tui-report.html tests/tui/*.test.mjs"
+    "test:tui:report": "rm -rf .tui-report tui-report.html && node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=tui-integration-tests/reporter --test-reporter-destination=tui-report.html tests/tui/*.test.mjs"
   Add `tui-report.html` and `.tui-report/` to .gitignore.
 
 STEP 2 — find the binary and make the app hermetic

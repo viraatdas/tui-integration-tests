@@ -14,7 +14,7 @@ pinned and checksum-verified. macOS/Linux, Node >= 20.
 
 1. `npm i -D tui-integration-tests`, then add scripts:
    - `"test:tui": "node --test tests/tui/*.test.mjs"`
-   - `"test:tui:report": "node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=tui-integration-tests/reporter --test-reporter-destination=tui-report.html tests/tui/*.test.mjs"`
+   - `"test:tui:report": "rm -rf .tui-report tui-report.html && node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=tui-integration-tests/reporter --test-reporter-destination=tui-report.html tests/tui/*.test.mjs"`
    - add `tui-report.html` and `.tui-report/` to .gitignore
 2. Find how this repo builds/runs its TUI. Make the app hermetic-testable —
    add these switches if missing (they are small changes and every test needs
