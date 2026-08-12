@@ -64,30 +64,49 @@ export async function ensureDriver() {
 
   await fsp.mkdir(cacheDir, { recursive: true });
   const url = `https://github.com/${pins.driver}/releases/download/${pins.version}/${artifact.name}`;
-  const archivePath = path.join(cacheDir, artifact.name);
-  process.stderr.write(`fetching ${url}\n`);
-  const response = await fetch(url, { redirect: "follow" });
-  if (!response.ok) {
-    throw new Error(`download failed: ${response.status} ${response.statusText} for ${url}`);
-  }
-  const bytes = Buffer.from(await response.arrayBuffer());
+  // CONCURRENT-SAFE: node --test runs test files in parallel, and on a cold
+  // cache every file's first launch() fetches. Stage everything under a
+  // per-process name and finish with an atomic rename — the losers of the
+  // race simply find the winner's binary. (The original shared-path version
+  // let one process rm the archive out from under another, or extract a
+  // half-written file: observed in CI the first time a consumer grew a
+  // second test file.)
+  const staging = path.join(cacheDir, `.staging-${process.pid}`);
+  await fsp.mkdir(staging, { recursive: true });
+  try {
+    process.stderr.write(`fetching ${url}\n`);
+    const response = await fetch(url, { redirect: "follow" });
+    if (!response.ok) {
+      throw new Error(`download failed: ${response.status} ${response.statusText} for ${url}`);
+    }
+    const bytes = Buffer.from(await response.arrayBuffer());
 
-  // Verify BEFORE extracting: a tampered or truncated archive must never
-  // reach tar, let alone produce an executable.
-  const digest = createHash("sha256").update(bytes).digest("hex");
-  if (digest !== artifact.sha256) {
-    throw new Error(
-      `checksum mismatch for ${artifact.name}:\n  expected ${artifact.sha256}\n  got      ${digest}\nRefusing to install.`,
-    );
+    // Verify BEFORE extracting: a tampered or truncated archive must never
+    // reach tar, let alone produce an executable.
+    const digest = createHash("sha256").update(bytes).digest("hex");
+    if (digest !== artifact.sha256) {
+      throw new Error(
+        `checksum mismatch for ${artifact.name}:\n  expected ${artifact.sha256}\n  got      ${digest}\nRefusing to install.`,
+      );
+    }
+    const archivePath = path.join(staging, artifact.name);
+    await fsp.writeFile(archivePath, bytes);
+    execFileSync("tar", ["xzf", archivePath, "-C", staging]);
+    const staged = path.join(staging, "tui-test");
+    if (!fs.existsSync(staged)) {
+      throw new Error(`archive extracted but tui-test is missing; artifact layout changed upstream?`);
+    }
+    await fsp.chmod(staged, 0o755);
+    try {
+      await fsp.rename(staged, driverPath);
+    } catch (error) {
+      // A concurrent fetch won the rename; their binary is as good as ours.
+      if (!fs.existsSync(driverPath)) throw error;
+    }
+    return driverPath;
+  } finally {
+    await fsp.rm(staging, { recursive: true, force: true });
   }
-  await fsp.writeFile(archivePath, bytes);
-  execFileSync("tar", ["xzf", archivePath, "-C", cacheDir]);
-  await fsp.rm(archivePath);
-  if (!fs.existsSync(driverPath)) {
-    throw new Error(`archive extracted but ${driverPath} is missing; artifact layout changed upstream?`);
-  }
-  await fsp.chmod(driverPath, 0o755);
-  return driverPath;
 }
 
 // CLI mode: print the path so shells can capture it.
