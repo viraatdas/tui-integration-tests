@@ -1,6 +1,6 @@
 {
   "name": "tui-integration-tests",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Screen-level integration tests for any terminal UI: plug in your binary, send real keystrokes through a real PTY, assert on what the user actually sees.",
   "type": "module",
   "license": "MIT",

@@ -337,13 +337,26 @@ export class Session {
     return issues;
   }
 
-  /** Throw if the screen shows structural corruption. See visualIssues(). */
-  async assertIntact() {
-    const issues = await this.visualIssues();
+  /**
+   * Throw if the screen shows structural corruption (see visualIssues()).
+   *
+   * Polls for a CLEAN frame rather than judging a single snapshot: a repaint
+   * blanks the grid for a frame, and a lone read landing there would false-
+   * positive on "entirely blank" — the same transient-frame trap waitForGone
+   * defends against. Passes as soon as the screen is intact; only a screen
+   * that stays broken for the whole window fails, reporting the last issues.
+   */
+  async assertIntact({ timeout = 3_000, interval = 100 } = {}) {
+    const deadline = Date.now() + timeout;
+    let issues = await this.visualIssues();
+    while (issues.length && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, interval));
+      issues = await this.visualIssues();
+    }
     if (issues.length) {
       const screen = await this.screen();
       throw new Error(
-        `screen is not visually intact:\n  - ${issues.join("\n  - ")}\n--- screen (${this.name}) ---\n${screen}`,
+        `screen is not visually intact (persisted ${timeout}ms):\n  - ${issues.join("\n  - ")}\n--- screen (${this.name}) ---\n${screen}`,
       );
     }
   }
