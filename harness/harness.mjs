@@ -251,6 +251,103 @@ export class Session {
     });
   }
 
+  /**
+   * LATENCY. A frozen or sluggish TUI passes every content assertion — the
+   * words are right, they just arrive too late. These measure how long the
+   * app takes to REACT, so a test can hold a responsiveness budget.
+   *
+   * Run `action`, then poll (fast, no fixed sleep) until `predicate(screen)`
+   * holds, and return the elapsed milliseconds. Throws if the budget is blown,
+   * with the last screen — so a latency regression reads like any other
+   * failure. Use a tight `interval` (default 10ms) to keep the measurement
+   * from being dominated by the poll granularity.
+   */
+  async timeToScreen(action, predicate, { timeout = 10_000, interval = 10, label = "response" } = {}) {
+    const start = Date.now();
+    await action();
+    const deadline = start + timeout;
+    for (;;) {
+      const screen = await this.screen();
+      if (predicate(screen)) {
+        return Date.now() - start;
+      }
+      if (Date.now() >= deadline) {
+        throw new Error(
+          `no ${label} within ${timeout}ms\n--- last screen (${this.name}) ---\n${screen}`,
+        );
+      }
+      await new Promise((resolve) => setTimeout(resolve, interval));
+    }
+  }
+
+  /** Milliseconds from a keystroke to `text` appearing — the keystroke-to-render budget. */
+  async keystrokeLatency(text, keys, { timeout = 5_000 } = {}) {
+    const send = Array.isArray(keys) ? keys : [keys];
+    return await this.timeToScreen(
+      async () => {
+        for (const k of send) await this.press(k);
+      },
+      (screen) => screen.includes(text),
+      { timeout, label: `text ${JSON.stringify(text)} after keystroke` },
+    );
+  }
+
+  /**
+   * VISUAL INTEGRITY — "nothing looks broken." A render can be structurally
+   * corrupt while every text assertion still passes: raw escape bytes bleeding
+   * into the grid, replacement glyphs from an encoding break, a box whose
+   * border does not close, or a wholly blank frame from a failed paint. This
+   * returns a list of detected problems (empty = clean); assertIntact() throws
+   * on any. Heuristic by design — it catches gross corruption, not subtle
+   * layout taste.
+   */
+  async visualIssues() {
+    const raw = await this.driver(["text"]); // un-normalized: keep every byte
+    const issues = [];
+    const rows = raw.replace(/\n$/, "").split("\n");
+
+    // 1. A live TUI is never wholly blank.
+    if (rows.every((r) => r.trim() === "")) {
+      issues.push("the screen is entirely blank");
+    }
+    // 2. Raw ESC / C0 control bytes must not survive into the cell text; the
+    //    driver strips real styling, so a leftover means ANSI leaked as content.
+    if (/[\x00-\x08\x0b-\x1f\x7f]/.test(raw)) {
+      issues.push("raw control/escape bytes are present in the screen text");
+    }
+    // 3. Unicode replacement char = an encoding break (a multi-byte glyph
+    //    rendered as garbage).
+    if (raw.includes("�")) {
+      issues.push("replacement character (�) present — an encoding break");
+    }
+    // 4. Box-drawing integrity: a row that OPENS a box border (┌ or └) must
+    //    also close it (┐ or ┘) — a border that starts and never ends is a
+    //    truncated/broken frame.
+    for (let i = 0; i < rows.length; i += 1) {
+      const r = rows[i];
+      const opensTop = r.includes("┌");
+      const opensBot = r.includes("└");
+      if (opensTop && !r.includes("┐")) {
+        issues.push(`row ${i}: box top border opens (┌) but never closes (┐)`);
+      }
+      if (opensBot && !r.includes("┘")) {
+        issues.push(`row ${i}: box bottom border opens (└) but never closes (┘)`);
+      }
+    }
+    return issues;
+  }
+
+  /** Throw if the screen shows structural corruption. See visualIssues(). */
+  async assertIntact() {
+    const issues = await this.visualIssues();
+    if (issues.length) {
+      const screen = await this.screen();
+      throw new Error(
+        `screen is not visually intact:\n  - ${issues.join("\n  - ")}\n--- screen (${this.name}) ---\n${screen}`,
+      );
+    }
+  }
+
   /** Wait until text is ABSENT — for asserting something went away. */
   async waitForGone(text, opts = {}) {
     return await this.waitFor((screen) => !screen.includes(text), {

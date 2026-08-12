@@ -3,3 +3,4 @@ node_modules/
 *.tmp
 tui-report.html
 .tui-report/
+.tui-report/

@@ -264,6 +264,24 @@ DEFINITION OF DONE
     if: always() so red runs keep their evidence
 ````
 
+## Latency and integrity: not just *what*, but *how well*
+
+A TUI can be correct in content yet unshippable — frozen, sluggish, or drawing
+torn frames. Two more layers cover that:
+
+```js
+// responsiveness budget — fails if the keystroke takes too long to land
+const ms = await session.keystrokeLatency("task created", "Enter");
+assert.ok(ms < 300, `Enter reflected in ${ms}ms`);
+
+// nothing-looks-broken — torn borders, escape-byte bleed, encoding breaks
+await session.assertIntact();
+```
+
+`assertIntact()` is heuristic (gross corruption, not layout taste): it flags a
+blank frame, raw control bytes leaking into the grid, replacement glyphs, and
+box borders that open without closing.
+
 ## Journeys: multi-turn stories, told step by step
 
 Real TUI assessment is not "does one key work" — it is a session that lives,
@@ -386,6 +404,8 @@ timeout error — which is the debugging loop working as designed:
 | `title()` | window title (OSC 0/2) |
 | `styleAt(text)` / `cellAt(x,y)` / `cells(x,y,w,h)` | **visual**: per-cell attributes (fg/bg color, bold, italic, underline) — catch color/style bugs `screen()` can't see |
 | `screenshot(path)` | full-color SVG of the screen (the report embeds these) |
+| `keystrokeLatency(text, keys)` / `timeToScreen(action, pred)` | **latency**: ms from a keystroke/action to the screen reflecting it — hold a responsiveness budget |
+| `visualIssues()` / `assertIntact()` | **integrity**: catch a torn border, escape-byte bleed, encoding break, or blank frame — corruption a text assertion misses |
 | `kill()` / `respawn()` / `waitForExit()` | process lifecycle; respawn reuses the config against whatever is on disk and inherits auto-cleanup |
 | `recordingPath` | every session's asciinema `.cast` replay, courtesy of the driver |
 | `close()` | tear down the session (also runs on process exit) |
