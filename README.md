@@ -38,6 +38,24 @@ following the field-tested rules below. (~140 tokens always-on; verified
 end to end: marketplace add → install → skill loads.) Other agents — Cursor,
 Codex — use the [prompt block](#fastest-path-paste-this-into-your-ai) instead.
 
+## Catching visual bugs, not just text
+
+`screen()` reads the characters, so a row rendered in the wrong color,
+stripped of its bold, or drawn with a broken border while the text is still
+right passes every text assertion. The visual layer asserts on what the user
+actually SEES:
+
+```js
+const style = await session.styleAt("merged");   // find the text, read its cell
+assert.equal(style.fg, 2);                        // ANSI green (see note below)
+assert.equal((await session.styleAt("conflict")).fg, 1);  // red — different state, different color
+```
+
+`fg`/`bg` are a palette INDEX (number: 1=red, 2=green, 4=blue…) for 16/256-color
+output, and a hex STRING (`"#6b7280"`) for truecolor — assert whichever your app
+emits. The HTML report also embeds a full-color **SVG screenshot** of each
+session, so a visual regression is visible at a glance, not just described.
+
 ## The API in one glance
 
 ```js
@@ -366,6 +384,8 @@ timeout error — which is the debugging loop working as designed:
 | `waitForText(text)` / `waitForGone(text)` / `waitFor(fn)` | poll until the condition holds; timeout errors include the last screen |
 | `resize(cols, rows)` | resize the PTY and emulator |
 | `title()` | window title (OSC 0/2) |
+| `styleAt(text)` / `cellAt(x,y)` / `cells(x,y,w,h)` | **visual**: per-cell attributes (fg/bg color, bold, italic, underline) — catch color/style bugs `screen()` can't see |
+| `screenshot(path)` | full-color SVG of the screen (the report embeds these) |
 | `kill()` / `respawn()` / `waitForExit()` | process lifecycle; respawn reuses the config against whatever is on disk and inherits auto-cleanup |
 | `recordingPath` | every session's asciinema `.cast` replay, courtesy of the driver |
 | `close()` | tear down the session (also runs on process exit) |

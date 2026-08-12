@@ -103,7 +103,9 @@ export class Session {
   }
 
   async type(text) {
-    await this.driver(["type", text]);
+    // `--` guards text that starts with '-' (e.g. "-3", "--flag") from being
+    // parsed as driver options.
+    await this.driver(["type", "--", text]);
   }
 
   /** Named keys, driver syntax: press("Enter"), press("Ctrl+C"), press("Escape"). */
@@ -131,6 +133,67 @@ export class Session {
   }
 
   /** The window title (OSC 0/2), normalized like the screen. */
+  /**
+   * VISUAL layer. screen() reads only the characters, so a row rendered in
+   * the wrong color, stripped of its bold, or drawn with a broken attribute
+   * passes every text assertion. These expose the per-cell ATTRIBUTES the
+   * driver already tracks (fg/bg hex, bold, italic, underline, inverse, dim),
+   * so a test can assert what the user actually SEES, not just reads.
+   */
+
+  /** Raw cell attribute objects for a region (0-based x/y, w/h default 1). */
+  async cells(x, y, w = 1, h = 1) {
+    const out = await this.driver([
+      "cells", "--json", String(x), String(y), String(w), String(h),
+    ]);
+    const parsed = JSON.parse(out);
+    const cells = parsed?.data?.cells ?? parsed?.cells ?? parsed;
+    return Array.isArray(cells) ? cells.flat() : [];
+  }
+
+  /** The single cell at (x, y): {char, fg, bg, bold, italic, ...}. */
+  async cellAt(x, y) {
+    const [cell] = await this.cells(x, y, 1, 1);
+    return cell ?? null;
+  }
+
+  /**
+   * The style of the first character of `text` on screen — the ergonomic
+   * visual assertion. Returns the cell's attributes (fg/bg/bold/…) so a test
+   * can say "the merged status is green" or "the header is bold" without
+   * hunting coordinates. Returns null when the text is not visible.
+   *
+   * NOTE on color: `fg`/`bg` are a PALETTE INDEX (number) for 16/256-color
+   * output — e.g. 1=red, 2=green, 4=blue — and a hex STRING ("#6b7280") for
+   * 24-bit truecolor. Assert against whichever the app under test emits.
+   */
+  async styleAt(text, { occurrence = 0 } = {}) {
+    const raw = await this.driver(["text"]); // un-normalized: coordinates must match
+    const rows = raw.split("\n");
+    let seen = -1;
+    for (let y = 0; y < rows.length; y += 1) {
+      let from = 0;
+      for (;;) {
+        const x = rows[y].indexOf(text, from);
+        if (x < 0) break;
+        seen += 1;
+        if (seen === occurrence) return await this.cellAt(x, y);
+        from = x + 1;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Write a full-color SVG screenshot to `outPath` (crisp at any zoom). The
+   * report embeds these, so a visual regression is human-visible, not just a
+   * diff of attribute JSON. `full: true` includes scrollback.
+   */
+  async screenshot(outPath, { full = false } = {}) {
+    await this.driver(["screenshot", ...(full ? ["--full"] : []), outPath]);
+    return outPath;
+  }
+
   async title() {
     // `get` emits JSON ({"value": ...}); tolerate plain text if that changes.
     const raw = (await this.driver(["get", "title"])).trim();
@@ -242,6 +305,9 @@ export class Session {
       const screen = await this.screen();
       const header = `session: ${this.name}\nbinary: ${this.config.binary} ${(this.config.args ?? []).join(" ")}\n---\n`;
       await fsp.writeFile(pathJoin(screensDir, `${this.name}.txt`), header + screen);
+      // Also a full-color SVG, so the report shows the pixels, not just the
+      // characters — a visual regression is then visible at a glance.
+      await this.screenshot(pathJoin(screensDir, `${this.name}.svg`)).catch(() => {});
     } catch {
       // No screen to capture (already dead) or nowhere to write it: fine.
     }

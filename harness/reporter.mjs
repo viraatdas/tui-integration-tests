@@ -49,10 +49,21 @@ function screensGallery() {
       .map((name) => {
         const raw = fs.readFileSync(path.join(dir, name), "utf8");
         const split = raw.indexOf("\n---\n");
+        const base = name.replace(/\.txt$/, "");
+        // Inline the matching SVG (full-color pixels) as a data URI so the
+        // report is one self-contained file — a visual bug is visible, not
+        // just describable.
+        let svg = null;
+        try {
+          svg = fs.readFileSync(path.join(dir, `${base}.svg`), "utf8");
+        } catch {
+          svg = null;
+        }
         return {
-          name: name.replace(/\.txt$/, ""),
+          name: base,
           meta: split >= 0 ? raw.slice(0, split) : "",
           screen: split >= 0 ? raw.slice(split + 5) : raw,
+          svg,
         };
       });
   } catch {
@@ -125,12 +136,16 @@ export default async function* tuiReporter(source) {
     .join("\n");
 
   const screens = gallery
-    .map(
-      (entry) => `<details>
+    .map((entry) => {
+      const img = entry.svg
+        ? `<img class="shot" alt="screenshot of ${esc(entry.name)}" src="data:image/svg+xml;base64,${Buffer.from(entry.svg).toString("base64")}">`
+        : "";
+      return `<details>
   <summary class="mono">${esc(entry.name)} <span class="dim">${esc(entry.meta.split("\n")[1] ?? "")}</span></summary>
+  ${img}
   <pre class="screen">${esc(entry.screen)}</pre>
-</details>`,
-    )
+</details>`;
+    })
     .join("\n");
 
   yield `<!doctype html>
@@ -146,6 +161,7 @@ export default async function* tuiReporter(source) {
   table { border-collapse:collapse; width:100%; margin:1rem 0; }
   td { padding:.35rem .6rem; border-bottom:1px solid #232a33; }
   .st { font-weight:600; width:3.5rem; } .ok { color:#3fb37f; } .bad { color:#e05252; }
+  img.shot { max-width:100%; border:1px solid #232a33; margin:.4rem 0; display:block; }
   pre.screen { background:#0b0e12; border:1px solid #232a33; padding: .8rem 1rem; overflow-x:auto; font-size:12px; line-height:1.35; }
   details { margin:.4rem 0; } summary { cursor:pointer; }
 </style>

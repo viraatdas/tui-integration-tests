@@ -35,7 +35,8 @@ function draw() {
   out.write("\x1b[2J\x1b[H"); // clear + home
   out.write(`┌${line}┐\n`);
   out.write(`│ counter-demo${restored ? "  (restored)" : ""}\n`);
-  out.write(`│ count: ${count}\n`);
+  const color = count < 0 ? "\x1b[31m" : count > 0 ? "\x1b[32m" : "";
+  out.write(`│ count: ${color}${count}\x1b[0m\n`);
   out.write(`│ size: ${cols}x${rows}\n`);
   out.write(`│ keys: + - r q\n`);
   out.write(`└${line}┘\n`);
