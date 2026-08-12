@@ -86,3 +86,44 @@ test("a full user story survives mutation, resize, and death", { timeout: 60_000
   assert.ok(stored.steps.every((step) => step.ok));
   assert.ok(stored.steps[5].screen.includes("(restored)"), "step screens capture the moment");
 });
+
+test("a failing journey step keeps its narrative in the storyline", async (t) => {
+  // The README promises a failing step flushes the story before rethrowing;
+  // mutation testing found that promise had no test. This is it: a step that
+  // throws must still land in the flushed JSON, marked failed, with the
+  // screen it captured — so a red run is a bug report, not a blank.
+  const reportDir = await fsp.mkdtemp(path.join(os.tmpdir(), "tit-jfail-"));
+  t.after(() => fsp.rm(reportDir, { recursive: true, force: true }));
+  const prior = process.env.TUI_IT_REPORT_DIR;
+  process.env.TUI_IT_REPORT_DIR = reportDir;
+  t.after(() => {
+    if (prior === undefined) delete process.env.TUI_IT_REPORT_DIR;
+    else process.env.TUI_IT_REPORT_DIR = prior;
+  });
+
+  const session = await launch({ binary: process.execPath, args: [demo], cols: 60, rows: 20 }, t);
+  await session.waitForText("counter-demo");
+  const story = journey(session, "a story that fails partway");
+
+  await story.step("first step is fine", () => session.waitForText("count: 0"));
+  await assert.rejects(
+    story.step("this step blows up", async () => {
+      await session.type("+");
+      throw new Error("boom");
+    }),
+    /boom/,
+  );
+
+  // The storyline was flushed by the failing step, not by end() (never called).
+  const stored = JSON.parse(
+    await fsp.readFile(
+      path.join(reportDir, "journeys", "a-story-that-fails-partway.json"),
+      "utf8",
+    ),
+  );
+  assert.equal(stored.steps.length, 2);
+  assert.equal(stored.steps[0].ok, true);
+  assert.equal(stored.steps[1].ok, false);
+  assert.equal(stored.steps[1].label, "this step blows up");
+  assert.ok(stored.steps[1].screen.length > 0, "the failing step captured its screen");
+});

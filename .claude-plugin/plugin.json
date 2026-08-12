@@ -1,7 +1,7 @@
 {
   "name": "tui-tests",
   "description": "Screen-level integration tests for terminal UIs: set up tui-integration-tests in a repo, write PTY-driven tests that assert on the visible screen, and debug failures from the embedded screen dumps.",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "author": {
     "name": "Viraat Das"
   }

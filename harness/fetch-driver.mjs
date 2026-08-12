@@ -17,6 +17,23 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "..");
 const pins = JSON.parse(fs.readFileSync(path.join(root, "pins.json"), "utf8"));
 
+/**
+ * The supply-chain gate: refuse any payload whose sha256 does not match the
+ * pinned value. Extracted as a named, pure function so it is unit-testable —
+ * the whole "never curl | sh" promise rests on this one comparison, and an
+ * untested guard is a guard you only find disabled after it mattered.
+ * Throws on mismatch; returns the verified bytes on success.
+ */
+export function verifyDigest(bytes, expectedSha256, artifactName = "artifact") {
+  const digest = createHash("sha256").update(bytes).digest("hex");
+  if (digest !== expectedSha256) {
+    throw new Error(
+      `checksum mismatch for ${artifactName}:\n  expected ${expectedSha256}\n  got      ${digest}\nRefusing to install.`,
+    );
+  }
+  return bytes;
+}
+
 function platformKey() {
   const key = `${process.platform}-${process.arch}`;
   // Alpine and friends: set TUI_IT_MUSL=1 to select the musl artifact.
@@ -79,16 +96,13 @@ export async function ensureDriver() {
     if (!response.ok) {
       throw new Error(`download failed: ${response.status} ${response.statusText} for ${url}`);
     }
-    const bytes = Buffer.from(await response.arrayBuffer());
-
     // Verify BEFORE extracting: a tampered or truncated archive must never
     // reach tar, let alone produce an executable.
-    const digest = createHash("sha256").update(bytes).digest("hex");
-    if (digest !== artifact.sha256) {
-      throw new Error(
-        `checksum mismatch for ${artifact.name}:\n  expected ${artifact.sha256}\n  got      ${digest}\nRefusing to install.`,
-      );
-    }
+    const bytes = verifyDigest(
+      Buffer.from(await response.arrayBuffer()),
+      artifact.sha256,
+      artifact.name,
+    );
     const archivePath = path.join(staging, artifact.name);
     await fsp.writeFile(archivePath, bytes);
     execFileSync("tar", ["xzf", archivePath, "-C", staging]);

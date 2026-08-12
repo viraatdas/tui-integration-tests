@@ -50,3 +50,24 @@ test("every session exposes its asciinema recording path", async (t) => {
   assert.match(session.recordingPath, /\.cast$/);
   await fsp.access(session.recordingPath);
 });
+
+test("verifyDigest refuses a payload whose checksum does not match", async () => {
+  const { verifyDigest } = await import("../harness/fetch-driver.mjs");
+  const bytes = Buffer.from("pretend this is a driver tarball");
+  const { createHash } = await import("node:crypto");
+  const realSha = createHash("sha256").update(bytes).digest("hex");
+
+  // Matching digest passes and returns the bytes unchanged.
+  assert.equal(verifyDigest(bytes, realSha, "good.tar.gz"), bytes);
+
+  // A tampered payload (or wrong pin) is refused before it can reach tar —
+  // the entire "never curl | sh" guarantee is this one check.
+  assert.throws(
+    () => verifyDigest(bytes, "0".repeat(64), "tampered.tar.gz"),
+    (error) => {
+      assert.match(error.message, /checksum mismatch for tampered\.tar\.gz/);
+      assert.match(error.message, /Refusing to install/);
+      return true;
+    },
+  );
+});
